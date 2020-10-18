@@ -33,7 +33,7 @@ if (w > max_width) or (h > max_height):
     print("Resizing image, new size: %dx%d, %.2f%%"%(new_size[0], new_size[1], ratio))
     img = cv2.resize(img, new_size, interpolation=cv2.INTER_AREA)
 
-img_blur = img.copy()
+img_blur = cv2.fastNlMeansDenoisingColored(img, None, 15, 10, 7, 21)
 
 blur_limit = float(100)
 if len(sys.argv) >= 3:
@@ -57,7 +57,9 @@ cnt, hier = cv2.findContours(img_edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 hier = hier[0]
 
 ch = [[cnt[i], hier[i], i] for i in range(len(cnt))]
-ch_top = sorted(ch, key=lambda x : cv2.contourArea(x[0]), reverse=True)[:20]
+ch_top = sorted(ch, key=lambda x : cv2.contourArea(x[0]), reverse=True)[:40]
+
+img_filtered = img.copy()
 
 possible = []
 for i in range(len(ch_top)):
@@ -68,6 +70,8 @@ for i in range(len(ch_top)):
         if inner >= 6:
             possible.append(i)
             break
+    if inner < 6:
+        img_filtered = cv2.drawContours(img_filtered, [ch_top[i][0]], -1, (0, 126, 255), 1)
 
 ch = [ch_top[p] for p in possible]
 
@@ -80,10 +84,10 @@ for i in range(len(ch)):
             break
     if ok:
         good.append(ch[i])
+    else:
+        img_filtered = cv2.drawContours(img_filtered, [ch[i][0]], -1, (255, 255, 0), 1)
 
 ch = good
-
-img_filtered = img.copy()
 
 plates = []
 for c, h, idx in ch:
@@ -141,13 +145,30 @@ for p in plates:
 
     hier = hier[0]
     ch = [[cnt[i], hier[i]] for i in range(len(cnt)) if ((hier[i][0] != -1) or (hier[i][1] != -1)) and (hier[i][3] != -1)]
-    ch = sorted(ch, key=lambda x : cv2.contourArea(x[0]), reverse=True)[:6]
+
+    for i in range(len(ch)):
+        ch[i][0] = cv2.convexHull(ch[i][0], False)
+
+    good = []
+    for i in range(len(ch)):
+        ok = True
+        for j in range(len(ch)):
+            if (i != j) and is_inside(ch[i][0], ch[j][0]):
+                ok = False
+                break
+        if ok:
+            good.append(ch[i])
+
+    ch = sorted(good, key=lambda x : cv2.contourArea(x[0]), reverse=True)[:6]
 
     if len(ch) >= 6:
         img_detected = cv2.drawContours(img_detected, [p], -1, (0, 255, 0), 2)
         cnt = [c[0] for c in ch]
         #crop_detected = cv2.drawContours(crop_detected, cnt, -1, (255, 0, 0), 1)
         for c in cnt:
+            #box = cv2.boxPoints(cv2.minAreaRect(c))
+            #box = np.int0(box)
+            #crop_detected = cv2.drawContours(crop_detected, [box], -1, (255, 0, 0), 1)
             x, y, w, h = cv2.boundingRect(c)
             crop_detected = cv2.rectangle(crop_detected, (x,y), (x+w,y+h), (255, 0, 0), 1)
     else:
