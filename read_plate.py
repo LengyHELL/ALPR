@@ -4,10 +4,22 @@ import sys
 import numpy as np
 import cv2
 
+arg = {}
+for a in sys.argv[1:]:
+    if (a[0] == "-"):
+        a = a[1:]
+        a = a.split("=")
+        if (len(a) == 2):
+            arg[a[0]] = a[1]
+        else:
+            sys.exit(3)
+    else:
+        sys.exit(2)
+
 if (len(sys.argv) <= 1):
     sys.exit(1)
 
-input_name, input_ext = sys.argv[1].split(".")
+input_name, input_ext = arg["input"].split(".")
 
 def is_inside(inside, outside):
     in_point = 0;
@@ -35,9 +47,9 @@ if (w > max_width) or (h > max_height):
 
 img_blur = cv2.fastNlMeansDenoisingColored(img, None, 15, 10, 7, 21)
 
-blur_limit = float(100)
-if len(sys.argv) >= 3:
-    blur_limit = float(sys.argv[2])
+blur_limit = float(15)
+if "blur_limit" in arg:
+    blur_limit = float(arg["blur_limit"])
 
 ok = False
 while ok == False:
@@ -57,7 +69,10 @@ cnt, hier = cv2.findContours(img_edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 hier = hier[0]
 
 ch = [[cnt[i], hier[i], i] for i in range(len(cnt))]
-ch_top = sorted(ch, key=lambda x : cv2.contourArea(x[0]), reverse=True)[:40]
+ch_top = sorted(ch, key=lambda x : cv2.contourArea(x[0]), reverse=True)[:20]
+
+#for i in range(len(ch_top)):
+#    ch_top[i][0] = cv2.convexHull(ch_top[i][0], False)
 
 img_filtered = img.copy()
 
@@ -126,12 +141,19 @@ for c, h, idx in ch:
         img_filtered = cv2.drawContours(img_filtered, [c], -1, (0, 0, 255), 1)
 
 img_detected = img.copy()
+chars = []
+candidates = []
 
 index = 0
 for p in plates:
     mask = np.zeros(img_gray.shape, np.uint8)
     img_masked = cv2.drawContours(mask, [p], 0, 255, -1,)
     img_masked = cv2.bitwise_and(img_edges, img_edges, mask=mask)
+
+    cv2.drawContours(img_masked, [p], 0, 0, 2)
+
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(2,2))
+    img_masked = cv2.dilate(img_masked, kernel)
 
     x, y, w, h = cv2.boundingRect(p)
     crop_masked = img_masked[y:y+h, x:x+w]
@@ -144,7 +166,7 @@ for p in plates:
         continue
 
     hier = hier[0]
-    ch = [[cnt[i], hier[i]] for i in range(len(cnt)) if ((hier[i][0] != -1) or (hier[i][1] != -1)) and (hier[i][3] != -1)]
+    ch = [[cnt[i], hier[i]] for i in range(len(cnt)) if (hier[i][0] != -1) or (hier[i][1] != -1)]
 
     for i in range(len(ch)):
         ch[i][0] = cv2.convexHull(ch[i][0], False)
@@ -165,16 +187,57 @@ for p in plates:
         img_detected = cv2.drawContours(img_detected, [p], -1, (0, 255, 0), 2)
         cnt = [c[0] for c in ch]
         #crop_detected = cv2.drawContours(crop_detected, cnt, -1, (255, 0, 0), 1)
+        num = -1
         for c in cnt:
+            num += 1
             #box = cv2.boxPoints(cv2.minAreaRect(c))
             #box = np.int0(box)
             #crop_detected = cv2.drawContours(crop_detected, [box], -1, (255, 0, 0), 1)
             x, y, w, h = cv2.boundingRect(c)
             crop_detected = cv2.rectangle(crop_detected, (x,y), (x+w,y+h), (255, 0, 0), 1)
+            chars.append([crop_detected.copy()[y:y+h, x:x+w], x])
+        chars = sorted(chars, key=lambda x : x[1])
+        candidates.append([c[0] for c in chars])
     else:
         img_filtered = cv2.drawContours(img_filtered, [p], -1, (0, 255, 255), 1)
 
     index += 1
+
+idx = 0
+t_num = "0123456789"
+t_char = "abcdefghijklmnoprstuvwxyz"
+for cnd in candidates:
+    idx += 1
+    plate = ""
+    pos = 0
+    for c in cnd:
+        if pos > 2:
+            templates = t_num
+        else:
+            templates = t_char
+        pos += 1
+
+        vals = []
+        for t in templates:
+            template = cv2.imread("templates/" + t + ".jpg")
+            h, w, col = c.shape
+            template = cv2.resize(template, (w, h), interpolation=cv2.INTER_AREA)
+
+            t_gray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
+            c_gray = cv2.cvtColor(c, cv2.COLOR_BGR2GRAY)
+
+            t_gray = cv2.adaptiveThreshold(t_gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 15, 0)
+            c_gray = cv2.adaptiveThreshold(c_gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 15, 0)
+            #template = cv2.threshold(template, 126, 255, cv2.THRESH_BINARY)[1]
+
+            #cv2.imshow("org", c_gray.astype(np.uint8))
+            #cv2.imshow("tmp", t_gray.astype(np.uint8))
+
+            vals.append([t, cv2.matchTemplate(t_gray, c_gray, cv2.TM_SQDIFF)[0][0]])
+        plate += sorted(vals, key=lambda x : x[1])[0][0]
+    plate = plate.upper()
+    plate = plate[:3] + "-" + plate[3:]
+    print("Plate " + str(idx) + " number:", plate)
 
 print(index, "plates found.")
 
@@ -183,7 +246,7 @@ cv2.imshow("Filtered candidates", img_filtered.astype(np.uint8))
 
 if (len(plates) > 0):
     cv2.imshow("Detected plates", img_detected.astype(np.uint8))
-    cv2.imshow("First detected plate", crop_masked.astype(np.uint8))
+    #cv2.imshow("First detected plate", crop_masked.astype(np.uint8))
 
 cv2.waitKey()
 cv2.destroyAllWindows()
