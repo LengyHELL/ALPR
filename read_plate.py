@@ -37,7 +37,7 @@ for a in sys.argv[1:]:
     else:
         sys.exit(2)
 
-if (len(sys.argv) <= 1):
+if "input" not in arg:
     sys.exit(1)
 
 input_name, input_ext = arg["input"].split(".")
@@ -77,18 +77,16 @@ thr = cv2.threshold(img_gray, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[0]
 
 img_edges = cv2.Canny(img_gray, thr, 0.5 * thr)
 
+kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,1))
+img_edges = cv2.morphologyEx(img_edges, cv2.MORPH_CLOSE, kernel)
+
 cnt, hier = cv2.findContours(img_edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
 ch = []
-if True:
+if False:
     ch = [[cv2.convexHull(cnt[i], False), i] for i in range(len(cnt))]
 else:
-    for i in range(len(cnt)):
-        c = cv2.convexHull(cnt[i], False)
-        rect = cv2.minAreaRect(c)
-        box = cv2.boxPoints(rect)
-        c = np.array([np.array([b]) for b in box]).astype(np.int32)
-        ch.append([c, i])
+    ch = [[cnt[i], i] for i in range(len(cnt))]
 
 ch_top = sorted(ch, key=lambda x : cv2.contourArea(x[0]), reverse=True)[:50]
 print("Found", len(ch), "contours.", get_time(start_time), "ms")
@@ -109,6 +107,8 @@ for t in ch_top:
 
 ch = [ch[p] for p in possible]
 
+#ch = [[cv2.convexHull(c[0]), c[1]] for c in ch]
+
 plates = []
 for c, idx in ch:
     og = c
@@ -116,14 +116,16 @@ for c, idx in ch:
 
     box = cv2.boxPoints(rect)
     c = np.int0(box)
-    found = False
 
-    desired = 520 / 110;
-    current = max(rect[1]) / min(rect[1])
-    margin = 0.3
+    if ((cv2.contourArea(c) / cv2.contourArea(og)) - 1) <= 0.2:
+        desired = 520 / 110;
+        current = max(rect[1]) / min(rect[1])
+        margin = 0.3
 
-    if desired * (1 - margin) <= current <= desired * (1 + margin):
-        plates.append([c, og])
+        if desired * (1 - margin) <= current <= desired * (1 + margin):
+            plates.append([c, og])
+        else:
+            img_filtered = cv2.drawContours(img_filtered, [c], -1, (0, 0, 255), 1)
     else:
         img_filtered = cv2.drawContours(img_filtered, [c], -1, (0, 0, 255), 1)
 
@@ -176,7 +178,7 @@ for p, og in plates:
     for i in range(len(ch)):
         ok = True
         for j in range(len(ch)):
-            if (i != j) and is_inside(ch[i][0], ch[j][0]):
+            if (i != j) and is_inside(ch[i][0], ch[j][0], 0.8):
                 ok = False
                 break
         if ok:
@@ -184,25 +186,9 @@ for p, og in plates:
 
     ch = sorted(good, key=lambda x : cv2.contourArea(x[0]) * cv2.boundingRect(x[0])[3], reverse=True)[:6]
 
-    margin = 0.95
-
-    avg = 0
-    for c in ch:
-        avg += cv2.contourArea(c[0])
-    avg /= len(ch)
-
-    diff_ok = True
-    for c in ch:
-        area = cv2.contourArea(c[0])
-        if avg * (1 - margin) <= area <= avg * (1 + margin):
-            diff_ok = True
-        else:
-            diff_ok = False
-            break
-
-    if (len(ch) >= 6) and diff_ok:
+    if (len(ch) >= 6):
         chars = []
-        img_detected = cv2.drawContours(img_detected, [p], -1, (0, 255, 0), 2)
+        img_detected = cv2.drawContours(img_detected, [og], -1, (0, 255, 0), 2)
         cnt = [c[0] for c in ch]
         #crop_detected = cv2.drawContours(crop_detected, cnt, -1, (255, 0, 0), 1)
         num = -1
