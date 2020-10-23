@@ -54,7 +54,7 @@ max_height = 1080
 if (w > max_width) or (h > max_height):
     ratio = min(max_width / w, max_height / h)
     new_size = (round(w * ratio), round(h * ratio))
-    print("Resizing image, new size: %dx%d, %.2f%%"%(new_size[0], new_size[1], ratio))
+    print("%-6s ms| Resizing image, new size: %dx%d, %.2f%%"%(get_time(start_time), new_size[0], new_size[1], ratio))
     img = cv2.resize(img, new_size, interpolation=cv2.INTER_AREA)
 
 img_blur = cv2.fastNlMeansDenoisingColored(img, None, 15, 10, 7, 21)
@@ -67,7 +67,7 @@ ok = False
 while ok == False:
     img_blur = cv2.GaussianBlur(img_blur, (3, 3), 0)
     detected_blur = cv2.Laplacian(img_blur, cv2.CV_64F).var() * 100000 / (img.shape[0] * img.shape[1])
-    print("Blur value: %.2f"%(detected_blur))
+    print("%-6s ms| Blur value: %.2f"%(get_time(start_time), detected_blur))
     if detected_blur <= blur_limit:
         ok = True
 
@@ -80,16 +80,22 @@ img_edges = cv2.Canny(img_gray, thr, 0.5 * thr)
 kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,1))
 img_edges = cv2.morphologyEx(img_edges, cv2.MORPH_CLOSE, kernel)
 
-cnt, hier = cv2.findContours(img_edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+cnt, hier = cv2.findContours(img_edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
 
 ch = []
 if False:
     ch = [[cv2.convexHull(cnt[i], False), i] for i in range(len(cnt))]
 else:
+    img_area = img_edges.shape[0] * img_edges.shape[1]
+    good = []
+    for c in cnt:
+        if cv2.contourArea(c) >= (img_area * 0.0001):
+            good.append(c)
+    cnt = good
     ch = [[cnt[i], i] for i in range(len(cnt))]
 
 ch_top = sorted(ch, key=lambda x : cv2.contourArea(x[0]), reverse=True)[:50]
-print("Found", len(ch), "contours.", get_time(start_time), "ms")
+print("%-6s ms| Found %d contours."%(get_time(start_time), len(ch)))
 
 img_filtered = img.copy()
 
@@ -207,7 +213,7 @@ for p, og in plates:
     else:
         img_filtered = cv2.drawContours(img_filtered, [p], -1, (0, 255, 255), 1)
 
-print(index, "plates found.")
+print("%-6s ms| %d plates found."%(get_time(start_time), index))
 
 idx = 0
 t_num = "0123456789"
@@ -245,7 +251,7 @@ for cnd in candidates:
     plate = plate[:3] + "-" + plate[3:]
     print("Plate " + str(idx) + " number:", plate)
 
-print("Executed in %.0f ms" % ((time.time() - start_time) * 1000))
+print("Executed in %d ms" % get_time(start_time))
 
 if "no-image" not in arg:
     cv2.imshow("Processed image", img_edges.astype(np.uint8))
