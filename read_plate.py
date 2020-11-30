@@ -23,6 +23,7 @@ def is_inside(inside, outside, limit_val=-1):
 
 start_time = time.time()
 
+# checking arguments
 arg = {}
 for a in sys.argv[1:]:
     if (a[0] == "-"):
@@ -47,6 +48,7 @@ img = cv2.imread(input_name + "." + input_ext)
 if img is None:
     sys.exit(1)
 
+# resizing image if bigger than max values
 h, w, c = img.shape
 
 max_width = 1920
@@ -57,8 +59,10 @@ if (w > max_width) or (h > max_height):
     print("%-6s ms| Resizing image, new size: %dx%d, %.2f%%"%(get_time(start_time), new_size[0], new_size[1], ratio))
     img = cv2.resize(img, new_size, interpolation=cv2.INTER_AREA)
 
+# denoising the image
 img_blur = cv2.fastNlMeansDenoisingColored(img, None, 15, 10, 7, 21)
 
+# applying blur until desired values
 blur_limit = float(15)
 if "blur-limit" in arg:
     blur_limit = float(arg["blur-limit"])
@@ -71,26 +75,30 @@ while ok == False:
     if detected_blur <= blur_limit:
         ok = True
 
+# grayscaling and thresholding the image
 img_gray = cv2.cvtColor(img_blur, cv2.COLOR_BGR2GRAY)
 
 thr = cv2.threshold(img_gray, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[0]
 
+# detecting edges and finding contours
 img_edges = cv2.Canny(img_gray, thr, 0.5 * thr)
 
-kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,1))
-img_edges = cv2.morphologyEx(img_edges, cv2.MORPH_CLOSE, kernel)
+#kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,1))
+#img_edges = cv2.morphologyEx(img_edges, cv2.MORPH_CLOSE, kernel)
 
 cnt, hier = cv2.findContours(img_edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
 
 ch = []
-if False:
-    ch = [[cv2.convexHull(cnt[i], False), i] for i in range(len(cnt))]
-else:
+if True:
     img_area = img_edges.shape[0] * img_edges.shape[1]
+
+    cnt = [cv2.convexHull(cnt[i], False) for i in range(len(cnt))]
+
     good = []
     for c in cnt:
-        if cv2.contourArea(c) >= (img_area * 0.0001):
+        if (img_area / 100) >= cv2.contourArea(c) >= (img_area / 10000):
             good.append(c)
+
     cnt = good
     ch = [[cnt[i], i] for i in range(len(cnt))]
 
@@ -105,10 +113,11 @@ for t in ch_top:
     for b in ch:
         if is_inside(b[0], t[0]):
             inner += 1
-        if inner >= 6:
+        if inner >= 3:
             possible.append(t[1])
             break
-    if inner < 6:
+    if inner < 3:
+        # orange
         img_filtered = cv2.drawContours(img_filtered, [t[0]], -1, (0, 126, 255), 1)
 
 ch = [ch[p] for p in possible]
@@ -131,8 +140,10 @@ for c, idx in ch:
         if desired * (1 - margin) <= current <= desired * (1 + margin):
             plates.append([c, og])
         else:
+            # red
             img_filtered = cv2.drawContours(img_filtered, [c], -1, (0, 0, 255), 1)
     else:
+        # red
         img_filtered = cv2.drawContours(img_filtered, [c], -1, (0, 0, 255), 1)
 
 good = []
@@ -145,6 +156,7 @@ for i in range(len(plates)):
     if ok:
         good.append(plates[i])
     else:
+        # turquoise
         img_filtered = cv2.drawContours(img_filtered, [plates[i][1]], -1, (255, 255, 0), 1)
 
 plates = good
@@ -171,6 +183,7 @@ for p, og in plates:
     cnt, hier = cv2.findContours(crop_masked, cv2.RETR_TREE, cv2.CHAIN_APPROX_TC89_KCOS)
 
     if hier is None:
+        # purple
         img_filtered = cv2.drawContours(img_filtered, [p], -1, (255, 0, 255), 1)
         continue
 
@@ -211,6 +224,7 @@ for p, og in plates:
         index += 1
         #cv2.imshow("Last plate", crop_masked.astype(np.uint8))
     else:
+        # yellow
         img_filtered = cv2.drawContours(img_filtered, [p], -1, (0, 255, 255), 1)
 
 print("%-6s ms| %d plates found."%(get_time(start_time), index))
@@ -254,12 +268,19 @@ for cnd in candidates:
 print("Executed in %d ms" % get_time(start_time))
 
 if "no-image" not in arg:
-    cv2.imshow("Processed image", img_edges.astype(np.uint8))
-    cv2.imshow("Filtered candidates", img_filtered.astype(np.uint8))
+    concat = np.concatenate((cv2.cvtColor(img_edges, cv2.COLOR_GRAY2BGR), img_filtered), axis = 1)
 
     if (index > 0):
-        cv2.imshow("Detected plates", img_detected.astype(np.uint8))
+        concat2 = np.concatenate((img_detected, np.zeros(img_detected.shape, dtype = np.uint8)), axis = 1)
+        concat = np.concatenate((concat, concat2), axis = 0)
         #cv2.imshow("First detected plate", crop_masked.astype(np.uint8))
 
-    cv2.waitKey()
+    cv2.namedWindow("images", cv2.WINDOW_NORMAL)
+    cv2.resizeWindow("images", (1280, 720))
+    cv2.imshow("images", concat)
+
+
+    while cv2.getWindowProperty("images", cv2.WND_PROP_VISIBLE) >= 1:
+        if cv2.waitKey(1000) == 32: # 27
+            break
     cv2.destroyAllWindows()
