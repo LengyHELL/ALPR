@@ -56,7 +56,8 @@ max_height = 1080
 if (w > max_width) or (h > max_height):
     ratio = min(max_width / w, max_height / h)
     new_size = (round(w * ratio), round(h * ratio))
-    print("%-6s ms| Resizing image, new size: %dx%d, %.2f%%"%(get_time(start_time), new_size[0], new_size[1], ratio))
+    if "silent" not in arg:
+        print("%-6s ms| Resizing image, new size: %dx%d, %.2f%%"%(get_time(start_time), new_size[0], new_size[1], ratio))
     img = cv2.resize(img, new_size, interpolation=cv2.INTER_AREA)
 
 # denoising the image
@@ -71,7 +72,8 @@ ok = False
 while ok == False:
     img_blur = cv2.GaussianBlur(img_blur, (3, 3), 0)
     detected_blur = cv2.Laplacian(img_blur, cv2.CV_64F).var() * 100000 / (img.shape[0] * img.shape[1])
-    print("%-6s ms| Blur value: %.2f"%(get_time(start_time), detected_blur))
+    if "silent" not in arg:
+        print("%-6s ms| Blur value: %.2f"%(get_time(start_time), detected_blur))
     if detected_blur <= blur_limit:
         ok = True
 
@@ -103,7 +105,8 @@ if True:
     ch = [[cnt[i], i] for i in range(len(cnt))]
 
 ch_top = sorted(ch, key=lambda x : cv2.contourArea(x[0]), reverse=True)[:50]
-print("%-6s ms| Found %d contours."%(get_time(start_time), len(ch)))
+if "silent" not in arg:
+    print("%-6s ms| Found %d contours."%(get_time(start_time), len(ch)))
 
 img_filtered = img.copy()
 
@@ -227,7 +230,8 @@ for p, og in plates:
         # yellow
         img_filtered = cv2.drawContours(img_filtered, [p], -1, (0, 255, 255), 1)
 
-print("%-6s ms| %d plates found."%(get_time(start_time), index))
+if "silent" not in arg:
+    print("%-6s ms| %d plates found."%(get_time(start_time), index))
 
 idx = 0
 t_num = "0123456789"
@@ -263,9 +267,13 @@ for cnd in candidates:
         plate += sorted(vals, key=lambda x : x[1])[0][0]
     plate = plate.upper()
     plate = plate[:3] + "-" + plate[3:]
-    print("Plate " + str(idx) + " number:", plate)
+    if "silent" not in arg:
+        print("Plate " + str(idx) + " number:", plate)
+    else:
+        print(plate)
 
-print("Executed in %d ms" % get_time(start_time))
+if "silent" not in arg:
+    print("Executed in %d ms" % get_time(start_time))
 
 if "no-image" not in arg:
     concat = np.concatenate((cv2.cvtColor(img_edges, cv2.COLOR_GRAY2BGR), img_filtered), axis = 1)
