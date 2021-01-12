@@ -113,9 +113,83 @@ The `cv2.pointPolygonTest()` function determines if a point is inside a contour.
 
 After the previous test, we filter the candidates by the ratio of their height and width. The **520/110** ratio is used for reference, because its the size of the plates we are looking for in mm. The amount of difference that is acceptable is defined by a precentage value.
 
-The last step is similar to the step where the inside contours are counted, but instead of all the contours, the candidates are checked with each other. This step mainly prevents the same area to be processed twice.
+The last step is similar to the step where the inside contours are counted, but instead of all the contours, the candidates are checked with each other using the *is_inside* function. This step mainly prevents the same area to be processed twice.
 
 The image of the filtration is shown at the end, the colors describe the candidates that are thrown out at a specific step of the filtration. The **orange** contours are thrown out at the step, where the inside contours are counted, the **red** contours are thrown out at the ratio checking test, and the **turquoise** contours are thrown out if they are inside during the last step.
 ![Example of the filtration image](/readme_images/filtered.jpg)
 
 #### Detecting the numbers
+Thanks to the previous filtration, the contours we have contain the license plate, and they are cut out from the resized original image. The plate in this state looks like this.
+
+<img src="readme_images/crop.jpg" alt="Image of the cut out candidate plate" width="500"><br>
+
+The plate then goes through the **same preparation** as the whole image, excluding the blurring steps. The preparation gives us a binary image of the license plate.
+
+The **separation of the characters** is also the same as before, filtering the contours inside each other, and sorting them in size, but instead here only the 6 biggest are chosen. The 6 biggest contour area represents the 6 characters of the plate.
+
+The characters are cut out and used in the next step. Their order is determinded by their horizontal position from left to right. They look like the following.
+
+<img src="readme_images/char0.jpg" alt="Example of cut out plate character" height="100">
+<img src="readme_images/char1.jpg" alt="Example of cut out plate character" height="100">
+<img src="readme_images/char2.jpg" alt="Example of cut out plate character" height="100">
+<img src="readme_images/char3.jpg" alt="Example of cut out plate character" height="100">
+<img src="readme_images/char4.jpg" alt="Example of cut out plate character" height="100">
+<img src="readme_images/char5.jpg" alt="Example of cut out plate character" height="100"><br><br>
+
+To convert the images of the characters into editable text, we need to compare them to the templates. To do this, each character is resized to the size of the template that it is compared to, and then converted to a binary image via the [grayscaling](https://docs.opencv.org/master/d8/d01/group__imgproc__color__conversions.html#ga397ae87e1288a81d2363b61574eb8cab) and [thresholding](https://docs.opencv.org/master/d7/d1b/group__imgproc__misc.html#ga72b913f352e4a1b1b397736707afcde3) method and a [function](https://docs.opencv.org/master/df/dfb/group__imgproc__object.html#ga586ebfb0a7fb604b35a23d85391329be) is used to give a matching value, these can be seen below in their respective order.
+
+    # grayscaling
+    t_gray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
+    c_gray = cv2.cvtColor(c, cv2.COLOR_BGR2GRAY)
+
+    # thresholding
+    t_gray = cv2.adaptiveThreshold(
+      t_gray,
+      255,
+      cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+      cv2.THRESH_BINARY_INV,
+      15,
+      0)
+
+    c_gray = cv2.adaptiveThreshold(
+      c_gray,
+      255,
+      cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+      cv2.THRESH_BINARY_INV,
+      15,
+      0)
+
+    # matching
+    vals.append([t, cv2.matchTemplate(t_gray, c_gray, cv2.TM_SQDIFF)[0][0]])
+
+After we calculated the match value of each template, the one with the most score is chosen, thus defining the character on the plate. The characters put together form a license plate. At the end the detected plates are shown as follows.
+![Example of the filtration image](/readme_images/detected.jpg)
+
+The **console output** without the -silent argument looks like this:
+
+    905    ms| Blur value: 9.01
+    915    ms| Found 209 contours.
+    1084   ms| 1 plates found.
+    Plate 1 number: REK-609
+    Executed in 1098 ms
+
+### Testing
+For testing the accuracy of the method, the **run_test** script is used. This compares the name of the images, which are the correct reads to the output of the **read_plate** script.
+
+The result looks like this:
+
+    NOZ-822 --- HOZ-822 Score: 5 Reads: 1
+    PFC-808 --- PFG-008 Score: 5 Reads: 1
+    NVW-388 --- NVW-300 Score: 4 Reads: 1
+    NUX-659 --- NUX-659 Score: 6 Reads: 1
+    PPE-525 --- PPE-525 Score: 6 Reads: 1
+    Test done in 264.493 s
+    Total: 95
+    Correct: 41
+    Multiple: 10
+    Wrong: 44
+    Average score: 4.315789473684211
+
+Here we can see the processed plates, where the plate number before the "**---**" separation is the desired, after is the found. The score shows how many of the numbers on the plate are correctly read, and the reads show the amount of found plates on an image.
+
+In our testing, we used 95 images, every one contained a single license plate. The **script correctly read 41** of them, **correctly read 10, but found plates that doesn't exist** and **failed in 44 instances**.
