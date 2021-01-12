@@ -1,6 +1,6 @@
 # ALPR
 
-An automatic license plate recognition script, using OpenCV.
+An automatic license plate recognition script for detecting single row Hungarian license plates using OpenCV.
 
 ## The steps of the process
 In the following paragraphs I'm going to explain each step of the image processing and the preparation for the scripts to work.
@@ -188,3 +188,9 @@ The result looks like this:
 Here we can see the processed plates, where the plate number before the "**---**" separation is the desired, after is the found. The score shows how many of the numbers on the plate are correctly read, and the reads show the amount of found plates on an image.
 
 In our testing, we used 95 images, every one contained a single license plate. The **script correctly read 41** of them, **correctly read 10, but found plates that doesn't exist** and **failed in 44 instances**.
+
+### Other
+
+The source of the car image used in the example is http://www.azauto.hu/2020/03/30/audi-q3-s-line-35-tfsi-aut/.
+
+The project was created by **Lengyel Márk (LNXQYO)** for an university class called **Gépi látás (GKNB_INTM038)**.
