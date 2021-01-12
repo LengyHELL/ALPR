@@ -220,8 +220,8 @@ for p, og in plates:
             #box = np.int0(box)
             #crop_detected = cv2.drawContours(crop_detected, [box], -1, (255, 0, 0), 1)
             x, y, w, h = cv2.boundingRect(c)
-            crop_detected = cv2.rectangle(crop_detected, (x,y), (x+w,y+h), (255, 0, 0), 1)
             chars.append([crop_detected.copy()[y:y+h, x:x+w], x])
+            crop_detected = cv2.rectangle(crop_detected, (x,y), (x+w,y+h), (255, 0, 0), 1)
         chars = sorted(chars, key=lambda x : x[1])
         candidates.append([c[0] for c in chars])
         index += 1
