@@ -169,7 +169,7 @@ The **console output** without the -silent argument looks like this:
     Executed in 1098 ms
 
 ### Testing
-For testing the accuracy of the method, the **run_test** script is used. This compares the name of the images, which are the correct reads to the output of the **read_plate** script.
+For testing the accuracy of the method, the **run_test** script is used. This compares the name of the images, which are the correct reads to the output of the **read_plate** script to the recognised plate numbers.
 
 The result looks like this:
 
