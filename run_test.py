@@ -3,6 +3,7 @@
 import os
 import sys
 import time
+import matplotlib.pyplot as plt
 
 def get_time(start_time):
     return int((time.time() - start_time) * 1000)
@@ -57,3 +58,13 @@ print("Correct:", correct)
 print("Multiple:", multiple)
 print("Wrong:", wrong)
 print("Average score:", sum / len(files))
+
+labels = "Correct", "Multiple", "Wrong"
+colors = "green", "orange", "red"
+sizes = [correct * (100 / len(files)), multiple * (100 / len(files)), wrong * (100 / len(files))]
+explode = (0.1, 0, 0)
+fig1, ax1 = plt.subplots()
+ax1.pie(sizes, colors=colors, explode=explode, labels=labels, autopct="%1.1f%%", shadow=True, startangle=90)
+ax1.axis("equal")
+plt.savefig("result.png")
+plt.show()
