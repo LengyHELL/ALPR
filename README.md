@@ -187,10 +187,12 @@ The result looks like this:
 
 Here we can see the processed plates, where the plate number before the "**---**" separation is the desired, after is the found. The score shows how many of the numbers on the plate are correctly read, and the reads show the amount of found plates on an image.
 
-In our testing, we used 95 images, every one contained a single license plate. The **script correctly read 41** of them, **correctly read 10, but found plates that doesn't exist** and **failed in 44 instances**.
+In my testing, I used 95 images, every one contained a single license plate. The **script correctly read 41** of them, **correctly read 10, but found plates that doesn't exist** and **failed in 44 instances**.
 
 ### Other
 
-The source of the car image used in the example is http://www.azauto.hu/2020/03/30/audi-q3-s-line-35-tfsi-aut/.
+The source of the car images used in the example and testing is http://www.azauto.hu/2020/03/30/audi-q3-s-line-35-tfsi-aut/.
+
+The test images can be found at https://www.dropbox.com/s/g0bamk0y9abkmxm/test_images.zip?dl=0.
 
 The project was created by **Lengyel Márk (LNXQYO)** for an university class called **Gépi látás (GKNB_INTM038)**.
